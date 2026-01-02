@@ -1,0 +1,39 @@
+# Ignore node_modules
+**/node_modules/
+
+# Ignore build outputs
+**/build/
+**/dist/
+
+# Ignore environment files with secrets
+**/.env
+!**/.env.example
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# Logs
+**/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Coverage
+coverage/
+
+# Local secrets (if any)
+.env*

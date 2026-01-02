@@ -1,0 +1,23 @@
+# Terraform Variables
+# Copy to terraform.tfvars and update with your values
+
+# AWS
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "ecommerce"
+
+# EC2 Instances
+master_instance_type = "t3.medium"
+worker_instance_type = "t3.medium"
+worker_count         = 2
+
+# SSH Key (paste your PUBLIC key here)
+# Generate: ssh-keygen -t rsa -b 4096 -f ~/.ssh/k3s-key
+ssh_public_key = "ssh-rsa AAAA... your-public-key"
+
+# RDS Database
+db_instance_class    = "db.t3.micro"
+db_allocated_storage = 20
+db_name              = "ecommerce_db"
+db_username          = "admin"
+db_password          = "YourSecurePassword123!"

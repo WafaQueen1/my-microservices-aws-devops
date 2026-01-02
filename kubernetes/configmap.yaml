@@ -1,0 +1,21 @@
+# Database configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: ecommerce
+data:
+  DB_PORT: "3306"
+  DB_NAME: "ecommerce_db"
+---
+# Application configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: ecommerce
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  PRODUCT_SERVICE_URL: "http://product-service:3001"
+  ORDER_SERVICE_URL: "http://order-service:3002"

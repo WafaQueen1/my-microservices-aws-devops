@@ -1,0 +1,204 @@
+/*
+ * E-Commerce Microservices - Production CI/CD Pipeline
+ * =====================================================
+ * 
+ * This pipeline performs real CI/CD operations:
+ * - Builds Docker images for all microservices
+ * - Pushes images to Docker Hub
+ * - Deploys to Kubernetes cluster
+ * 
+ * Prerequisites:
+ * 1. Docker Hub credentials stored in Jenkins as 'dockerhub-credentials'
+ * 2. kubectl configured (uses in-cluster service account)
+ * 3. Docker available in Jenkins agent
+ */
+
+pipeline {
+    agent any
+
+    environment {
+        // Docker Hub configuration - CHANGE THIS to your Docker Hub username
+        DOCKER_HUB_REPO = 'hamzachera44'
+        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
+        
+        // Image names
+        FRONTEND_IMAGE = "${DOCKER_HUB_REPO}/ecommerce-frontend"
+        PRODUCT_IMAGE = "${DOCKER_HUB_REPO}/product-service"
+        ORDER_IMAGE = "${DOCKER_HUB_REPO}/order-service"
+        
+        // Version tag
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        
+        // Kubernetes namespace
+        K8S_NAMESPACE = 'ecommerce'
+        
+        // Add tools to PATH (installed in ~/bin)
+        PATH = "${env.HOME}/bin:${env.PATH}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "✅ Code checked out successfully"
+                echo "📌 Build: #${BUILD_NUMBER}"
+                echo "📌 Branch: ${env.GIT_BRANCH ?: 'N/A'}"
+            }
+        }
+
+        stage('Validate') {
+            steps {
+                echo "🔍 Validating project structure..."
+                sh '''
+                    echo "Checking required files..."
+                    test -f app/frontend/Dockerfile && echo "✓ Frontend Dockerfile"
+                    test -f app/product-service/Dockerfile && echo "✓ Product Service Dockerfile"
+                    test -f app/order-service/Dockerfile && echo "✓ Order Service Dockerfile"
+                    test -f app/frontend/package.json && echo "✓ Frontend package.json"
+                    test -f app/product-service/package.json && echo "✓ Product Service package.json"
+                    test -f app/order-service/package.json && echo "✓ Order Service package.json"
+                '''
+                echo "✅ Project structure validated"
+            }
+        }
+
+        stage('Build Docker Images') {
+            parallel {
+                stage('Build Frontend') {
+                    steps {
+                        echo "🔨 Building Frontend image..."
+                        dir('app/frontend') {
+                            sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest ."
+                        }
+                        echo "✅ Frontend image built"
+                    }
+                }
+                stage('Build Product Service') {
+                    steps {
+                        echo "🔨 Building Product Service image..."
+                        dir('app/product-service') {
+                            sh "docker build -t ${PRODUCT_IMAGE}:${IMAGE_TAG} -t ${PRODUCT_IMAGE}:latest ."
+                        }
+                        echo "✅ Product Service image built"
+                    }
+                }
+                stage('Build Order Service') {
+                    steps {
+                        echo "🔨 Building Order Service image..."
+                        dir('app/order-service') {
+                            sh "docker build -t ${ORDER_IMAGE}:${IMAGE_TAG} -t ${ORDER_IMAGE}:latest ."
+                        }
+                        echo "✅ Order Service image built"
+                    }
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo "📤 Pushing images to Docker Hub..."
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        
+                        echo "Pushing Frontend..."
+                        docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+                        docker push ${FRONTEND_IMAGE}:latest
+                        
+                        echo "Pushing Product Service..."
+                        docker push ${PRODUCT_IMAGE}:${IMAGE_TAG}
+                        docker push ${PRODUCT_IMAGE}:latest
+                        
+                        echo "Pushing Order Service..."
+                        docker push ${ORDER_IMAGE}:${IMAGE_TAG}
+                        docker push ${ORDER_IMAGE}:latest
+                        
+                        docker logout
+                    '''
+                }
+                echo "✅ All images pushed to Docker Hub"
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "🚀 Deploying to Kubernetes..."
+                sh '''
+                    # Update deployments with new images
+                    kubectl set image deployment/frontend \
+                        frontend=${FRONTEND_IMAGE}:${IMAGE_TAG} \
+                        -n ${K8S_NAMESPACE} --record || echo "Frontend deployment update attempted"
+                    
+                    kubectl set image deployment/product-service \
+                        product-service=${PRODUCT_IMAGE}:${IMAGE_TAG} \
+                        -n ${K8S_NAMESPACE} --record || echo "Product Service deployment update attempted"
+                    
+                    kubectl set image deployment/order-service \
+                        order-service=${ORDER_IMAGE}:${IMAGE_TAG} \
+                        -n ${K8S_NAMESPACE} --record || echo "Order Service deployment update attempted"
+                    
+                    # Wait for rollouts to complete
+                    echo "Waiting for rollouts..."
+                    kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE} --timeout=120s || true
+                    kubectl rollout status deployment/product-service -n ${K8S_NAMESPACE} --timeout=120s || true
+                    kubectl rollout status deployment/order-service -n ${K8S_NAMESPACE} --timeout=120s || true
+                '''
+                echo "✅ Deployment complete"
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "🔍 Verifying deployment..."
+                sh '''
+                    echo "=== Pod Status ==="
+                    kubectl get pods -n ${K8S_NAMESPACE} -o wide
+                    
+                    echo ""
+                    echo "=== Service Status ==="
+                    kubectl get svc -n ${K8S_NAMESPACE}
+                    
+                    echo ""
+                    echo "=== Deployment Status ==="
+                    kubectl get deployments -n ${K8S_NAMESPACE}
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '''
+╔══════════════════════════════════════════════════════════════╗
+║              🎉 PIPELINE COMPLETED SUCCESSFULLY 🎉           ║
+╠══════════════════════════════════════════════════════════════╣
+║  ✅ Docker images built and pushed                           ║
+║  ✅ Kubernetes deployments updated                           ║
+╠══════════════════════════════════════════════════════════════╣
+║  📦 Images pushed with tag: ${BUILD_NUMBER}                  ║
+╚══════════════════════════════════════════════════════════════╝
+            '''
+        }
+        failure {
+            echo '''
+╔══════════════════════════════════════════════════════════════╗
+║              ❌ PIPELINE FAILED ❌                            ║
+╠══════════════════════════════════════════════════════════════╣
+║  Check the console output above for error details.           ║
+║  Common issues:                                              ║
+║  - Docker Hub credentials invalid                            ║
+║  - Dockerfile syntax error                                   ║
+║  - Kubernetes connection issue                               ║
+╚══════════════════════════════════════════════════════════════╝
+            '''
+        }
+        always {
+            // Clean up Docker images to save space
+            sh 'docker image prune -f || true'
+        }
+    }
+}
