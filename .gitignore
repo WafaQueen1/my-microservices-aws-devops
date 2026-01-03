@@ -37,3 +37,9 @@ coverage/
 
 # Local secrets (if any)
 .env*
+
+.terraform/vockey.pem
+
+.terraform/vockey.pub
+
+*.pem

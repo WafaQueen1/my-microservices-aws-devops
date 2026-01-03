@@ -14,75 +14,15 @@ resource "aws_cloudwatch_dashboard" "main" {
         width  = 24
         height = 1
         properties = {
-          markdown = "# E-Commerce K3s Cluster - CloudWatch Dashboard"
-        }
-      },
-      # EC2 CPU Utilization
-      {
-        type   = "metric"
-        x      = 0
-        y      = 1
-        width  = 8
-        height = 6
-        properties = {
-          title  = "EC2 CPU Utilization"
-          region = var.aws_region
-          metrics = [
-            ["AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.k3s_master.id, { label = "Master" }],
-            ["AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.k3s_worker[0].id, { label = "Worker 1" }],
-            ["AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.k3s_worker[1].id, { label = "Worker 2" }]
-          ]
-          period = 300
-          stat   = "Average"
-          view   = "timeSeries"
-        }
-      },
-      # EC2 Network In
-      {
-        type   = "metric"
-        x      = 8
-        y      = 1
-        width  = 8
-        height = 6
-        properties = {
-          title  = "EC2 Network In (bytes)"
-          region = var.aws_region
-          metrics = [
-            ["AWS/EC2", "NetworkIn", "InstanceId", aws_instance.k3s_master.id, { label = "Master" }],
-            ["AWS/EC2", "NetworkIn", "InstanceId", aws_instance.k3s_worker[0].id, { label = "Worker 1" }],
-            ["AWS/EC2", "NetworkIn", "InstanceId", aws_instance.k3s_worker[1].id, { label = "Worker 2" }]
-          ]
-          period = 300
-          stat   = "Sum"
-          view   = "timeSeries"
-        }
-      },
-      # EC2 Network Out
-      {
-        type   = "metric"
-        x      = 16
-        y      = 1
-        width  = 8
-        height = 6
-        properties = {
-          title  = "EC2 Network Out (bytes)"
-          region = var.aws_region
-          metrics = [
-            ["AWS/EC2", "NetworkOut", "InstanceId", aws_instance.k3s_master.id, { label = "Master" }],
-            ["AWS/EC2", "NetworkOut", "InstanceId", aws_instance.k3s_worker[0].id, { label = "Worker 1" }],
-            ["AWS/EC2", "NetworkOut", "InstanceId", aws_instance.k3s_worker[1].id, { label = "Worker 2" }]
-          ]
-          period = 300
-          stat   = "Sum"
-          view   = "timeSeries"
+          markdown = "# E-Commerce EKS Cluster - CloudWatch Dashboard"
         }
       },
       # RDS CPU
       {
         type   = "metric"
         x      = 0
-        y      = 7
-        width  = 8
+        y      = 1
+        width  = 12
         height = 6
         properties = {
           title  = "RDS CPU Utilization"

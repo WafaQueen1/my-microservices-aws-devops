@@ -25,10 +25,5 @@ provider "aws" {
   }
 }
 
-# Data source to get available AZs
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 # Data source to get current AWS account ID
 data "aws_caller_identity" "current" {}

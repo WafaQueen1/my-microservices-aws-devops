@@ -21,38 +21,23 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
-# K3s Cluster Outputs
-output "k3s_master_public_ip" {
-  description = "Public IP of the K3s master node"
-  value       = aws_instance.k3s_master.public_ip
+# EKS Cluster Outputs
+output "eks_cluster_name" {
+  description = "The name of the EKS cluster"
+  value       = aws_eks_cluster.main.name
 }
 
-output "k3s_master_private_ip" {
-  description = "Private IP of the K3s master node"
-  value       = aws_instance.k3s_master.private_ip
+output "eks_cluster_endpoint" {
+  description = "The endpoint for the EKS cluster"
+  value       = aws_eks_cluster.main.endpoint
 }
 
-output "k3s_worker_public_ips" {
-  description = "Public IPs of K3s worker nodes"
-  value       = aws_instance.k3s_worker[*].public_ip
-}
-
-output "k3s_worker_private_ips" {
-  description = "Private IPs of K3s worker nodes"
-  value       = aws_instance.k3s_worker[*].private_ip
+output "eks_cluster_certificate_authority" {
+  description = "The certificate authority for the EKS cluster"
+  value       = aws_eks_cluster.main.certificate_authority[0].data
 }
 
 # Security Group Outputs
-output "k3s_master_security_group_id" {
-  description = "Security group ID for K3s master"
-  value       = aws_security_group.k3s_master.id
-}
-
-output "k3s_worker_security_group_id" {
-  description = "Security group ID for K3s workers"
-  value       = aws_security_group.k3s_worker.id
-}
-
 output "rds_security_group_id" {
   description = "Security group ID for RDS"
   value       = aws_security_group.rds.id
@@ -90,37 +75,25 @@ output "database_connection_info" {
 }
 
 # Helpful commands output
-output "helpful_commands" {
-  description = "Helpful commands to interact with the infrastructure"
-  value = <<-EOT
+output "helpful_instructions" {
+  description = "Instructions to interact with the infrastructure"
+  value       = <<-EOT
     
     ============================================
-    K3s CLUSTER ACCESS INSTRUCTIONS
+    EKS CLUSTER ACCESS INSTRUCTIONS
     ============================================
     
-    1. SSH into the master node:
-       ssh -i <your-private-key.pem> ec2-user@${aws_instance.k3s_master.public_ip}
+    1. Update your local kubeconfig:
+       aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}
     
-    2. Check cluster status (on master):
+    2. Verify cluster access:
        kubectl get nodes
-       kubectl get pods --all-namespaces
     
-    3. Copy kubeconfig to your local machine:
-       scp -i <your-private-key.pem> ec2-user@${aws_instance.k3s_master.public_ip}:/home/ec2-user/.kube/config ~/.kube/config-k3s
-       
-       Then update the server address in the config:
-       sed -i 's/127.0.0.1/${aws_instance.k3s_master.public_ip}/g' ~/.kube/config-k3s
-       export KUBECONFIG=~/.kube/config-k3s
+    3. RDS Connection (for debugging):
+       Endpoint: ${aws_db_instance.main.endpoint}
+       Database: ${aws_db_instance.main.db_name}
     
-    4. Access your application:
-       http://${aws_instance.k3s_master.public_ip}:30080  (Frontend)
-       http://${aws_instance.k3s_master.public_ip}:30090  (Grafana - admin/admin123)
-       http://${aws_instance.k3s_master.public_ip}:30100  (Jenkins)
-    
-    5. RDS Connection (from within EC2):
-       mysql -h ${aws_db_instance.main.address} -P ${aws_db_instance.main.port} -u admin -p
-
-    6. CloudWatch (AWS Console):
+    4. CloudWatch (AWS Console):
        https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}
     
   EOT

@@ -7,25 +7,7 @@ resource "aws_security_group" "rds" {
   description = "Security group for RDS MySQL instance"
   vpc_id      = aws_vpc.main.id
 
-  # Allow MySQL traffic from K3s master
-  ingress {
-    description     = "MySQL from K3s master"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.k3s_master.id]
-  }
-
-  # Allow MySQL traffic from K3s workers
-  ingress {
-    description     = "MySQL from K3s workers"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.k3s_worker.id]
-  }
-
-  # Allow MySQL traffic from within VPC (for debugging)
+  # Allow MySQL traffic from within VPC (for EKS nodes)
   ingress {
     description = "MySQL from VPC"
     from_port   = 3306
@@ -33,6 +15,7 @@ resource "aws_security_group" "rds" {
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
   }
+
 
   # Allow all outbound traffic
   egress {
