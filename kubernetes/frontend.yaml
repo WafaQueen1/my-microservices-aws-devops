@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: hamzachera44/ecommerce-frontend:latest
+          image: <YOUR_DOCKERHUB_USERNAME>/ecommerce-frontend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80

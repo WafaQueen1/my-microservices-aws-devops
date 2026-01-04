@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: hamzachera44/order-service:latest
+          image: <YOUR_DOCKERHUB_USERNAME>/order-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3002
