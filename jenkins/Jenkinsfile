@@ -18,7 +18,7 @@ pipeline {
 
     environment {
         // Docker Hub configuration - CHANGE THIS to your Docker Hub username
-        DOCKER_HUB_REPO = 'hamzachera44'
+        DOCKER_HUB_REPO = 'wafa20022025'
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
         
         // Image names

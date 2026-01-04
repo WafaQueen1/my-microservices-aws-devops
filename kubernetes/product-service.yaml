@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: product-service
-          image: hamzachera44/product-service:latest
+          image: wafa20022025/product-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
