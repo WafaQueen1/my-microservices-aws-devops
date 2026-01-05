@@ -95,7 +95,7 @@ data:
           "pluginVersion": "10.0.0",
           "targets": [
             {
-              "expr": "sum(up{kubernetes_namespace=\"ecommerce\"})",
+              "expr": "sum(up{job=\"kubernetes-pods\", kubernetes_namespace=\"ecommerce\", app=~\"product-service|order-service\"})",
               "refId": "A"
             }
           ],
@@ -124,11 +124,11 @@ data:
           "id": 2,
           "targets": [
             {
-              "expr": "sum({__name__=~\".*_nodejs_active_requests_total\"})",
+              "expr": "sum(rate({__name__=~\".*_process_cpu_seconds_total\"}[5m]))",
               "refId": "A"
             }
           ],
-          "title": "Active Requests",
+          "title": "Traffic Load (Backend CPU)",
           "type": "timeseries"
         },
         {
