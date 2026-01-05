@@ -44,14 +44,29 @@ node {
         cleanWs()
     }
     
-    // Run builds sequentially or wrap in parallel if cluster has enough capacity
+    // Run builds sequentially
     buildImage('Frontend', 'app/frontend', 'wafa20022025/ecommerce-frontend:latest')
     buildImage('Product Service', 'app/product-service', 'wafa20022025/product-service:latest')
     buildImage('Order Service', 'app/order-service', 'wafa20022025/order-service:latest')
 
-    stage('Deploy to EKS') {
-        sh "kubectl apply -f kubernetes/product-service.yaml -n ecommerce"
-        sh "kubectl apply -f kubernetes/order-service.yaml -n ecommerce"
-        sh "kubectl apply -f kubernetes/frontend.yaml -n ecommerce"
+    podTemplate(yaml: '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["sleep"]
+    args: ["9999999"]
+''') {
+        node(POD_LABEL) {
+            stage('Deploy to EKS') {
+                container('kubectl') {
+                    sh "kubectl apply -f kubernetes/product-service.yaml -n ecommerce"
+                    sh "kubectl apply -f kubernetes/order-service.yaml -n ecommerce"
+                    sh "kubectl apply -f kubernetes/frontend.yaml -n ecommerce"
+                }
+            }
+        }
     }
 }
