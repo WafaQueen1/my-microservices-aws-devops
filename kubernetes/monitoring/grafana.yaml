@@ -124,11 +124,11 @@ data:
           "id": 2,
           "targets": [
             {
-              "expr": "sum(rate({__name__=~\".*_nodejs_active_requests_total\"}[5m]))",
+              "expr": "sum({__name__=~\".*_nodejs_active_requests_total\"})",
               "refId": "A"
             }
           ],
-          "title": "Request Rate",
+          "title": "Active Requests",
           "type": "timeseries"
         },
         {
