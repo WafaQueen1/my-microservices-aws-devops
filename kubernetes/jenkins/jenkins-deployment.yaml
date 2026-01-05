@@ -61,6 +61,15 @@ spec:
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chmod 666 /var/run/docker.sock || true"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts
