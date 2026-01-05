@@ -1,10 +1,11 @@
 /*
- * E-Commerce Microservices - EKS Optimized Pipeline (Kaniko)
- * ==========================================================
- * This version uses Kaniko because EKS nodes use containerd (no Docker daemon).
+ * E-Commerce Microservices - EKS Optimized Pipeline (Kaniko Multi-Pod)
+ * ===================================================================
+ * This version runs each build in its own pod to avoid Kaniko's filesystem corruption.
  */
 
-podTemplate(yaml: '''
+def buildImage(String serviceName, String contextPath, String destination) {
+    podTemplate(yaml: """
 apiVersion: v1
 kind: Pod
 spec:
@@ -19,33 +20,38 @@ spec:
   volumes:
   - name: docker-config
     emptyDir: {}
-''') {
-
-    node(POD_LABEL) {
-        stage('Checkout') {
-            checkout scm
-        }
-
-        stage('Build & Push images') {
-            container('kaniko') {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        mkdir -p /kaniko/.docker
-                        AUTH=$(echo -n "${DOCKER_USER}:${DOCKER_PASS}" | base64 | tr -d '\n')
-                        echo "{\\"auths\\":{\\"https://index.docker.io/v1/\\":{\\"auth\\":\\"${AUTH}\\"}}}" > /kaniko/.docker/config.json
-                    '''
-                    
-                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/frontend --dockerfile ${env.WORKSPACE}/app/frontend/Dockerfile --destination=wafa20022025/ecommerce-frontend:latest"
-                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/product-service --dockerfile ${env.WORKSPACE}/app/product-service/Dockerfile --destination=wafa20022025/product-service:latest"
-                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/order-service --dockerfile ${env.WORKSPACE}/app/order-service/Dockerfile --destination=wafa20022025/order-service:latest"
+""") {
+        node(POD_LABEL) {
+            stage("Build ${serviceName}") {
+                checkout scm
+                container('kaniko') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            mkdir -p /kaniko/.docker
+                            AUTH=\$(echo -n "\${DOCKER_USER}:\${DOCKER_PASS}" | base64 | tr -d '\\n')
+                            echo "{\\"auths\\":{\\"https://index.docker.io/v1/\\":{\\"auth\\":\\"\${AUTH}\\"}}}" > /kaniko/.docker/config.json
+                            /kaniko/executor --context ${env.WORKSPACE}/${contextPath} --dockerfile ${env.WORKSPACE}/${contextPath}/Dockerfile --destination=${destination}
+                        """
+                    }
                 }
             }
         }
+    }
+}
 
-        stage('Deploy to EKS') {
-            sh "kubectl apply -f kubernetes/product-service.yaml -n ecommerce"
-            sh "kubectl apply -f kubernetes/order-service.yaml -n ecommerce"
-            sh "kubectl apply -f kubernetes/frontend.yaml -n ecommerce"
-        }
+node {
+    stage('Initialize') {
+        cleanWs()
+    }
+    
+    // Run builds sequentially or wrap in parallel if cluster has enough capacity
+    buildImage('Frontend', 'app/frontend', 'wafa20022025/ecommerce-frontend:latest')
+    buildImage('Product Service', 'app/product-service', 'wafa20022025/product-service:latest')
+    buildImage('Order Service', 'app/order-service', 'wafa20022025/order-service:latest')
+
+    stage('Deploy to EKS') {
+        sh "kubectl apply -f kubernetes/product-service.yaml -n ecommerce"
+        sh "kubectl apply -f kubernetes/order-service.yaml -n ecommerce"
+        sh "kubectl apply -f kubernetes/frontend.yaml -n ecommerce"
     }
 }
