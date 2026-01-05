@@ -40,6 +40,22 @@ roleRef:
 ---
 
 ---
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-init-scripts
+  namespace: jenkins
+data:
+  disable-csrf.groovy: |
+    import jenkins.model.*
+    import hudson.security.*
+    def instance = Jenkins.getInstance()
+    instance.setCrumbIssuer(null)
+    instance.save()
+    println "CSRF Protection Disabled to fix 403 error"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -79,6 +95,9 @@ spec:
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home
+            - name: init-scripts
+              mountPath: /var/jenkins_home/init.groovy.d/disable-csrf.groovy
+              subPath: disable-csrf.groovy
           livenessProbe:
             httpGet:
               path: /login
@@ -98,6 +117,9 @@ spec:
       volumes:
         - name: jenkins-home
           emptyDir: {}
+        - name: init-scripts
+          configMap:
+            name: jenkins-init-scripts
 ---
 apiVersion: v1
 kind: Service
