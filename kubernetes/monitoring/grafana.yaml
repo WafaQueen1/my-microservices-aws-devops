@@ -95,7 +95,7 @@ data:
           "pluginVersion": "10.0.0",
           "targets": [
             {
-              "expr": "sum(up{job=\"kubernetes-pods\", kubernetes_namespace=\"ecommerce\", app=~\"product-service|order-service\"})",
+              "expr": "count(up{job=\"kubernetes-pods\", kubernetes_namespace=\"ecommerce\"})",
               "refId": "A"
             }
           ],
