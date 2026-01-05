@@ -105,6 +105,8 @@ spec:
           env:
             - name: DOCKER_TLS_CERTDIR
               value: ""
+            - name: IPTABLES_MODE
+              value: "legacy"
           resources:
             requests:
               cpu: "500m"
