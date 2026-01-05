@@ -5,7 +5,7 @@
  */
 
 def buildImage(String serviceName, String contextPath, String destination) {
-    podTemplate(yaml: """
+    podTemplate(label: "kaniko-${serviceName.toLowerCase().replace(' ', '-')}", cloud: 'kubernetes', yaml: """
 apiVersion: v1
 kind: Pod
 spec:
@@ -21,7 +21,7 @@ spec:
   - name: docker-config
     emptyDir: {}
 """) {
-        node(POD_LABEL) {
+        node("kaniko-${serviceName.toLowerCase().replace(' ', '-')}") {
             stage("Build ${serviceName}") {
                 checkout scm
                 container('kaniko') {
@@ -49,7 +49,7 @@ node {
     buildImage('Product Service', 'app/product-service', 'wafa20022025/product-service:latest')
     buildImage('Order Service', 'app/order-service', 'wafa20022025/order-service:latest')
 
-    podTemplate(yaml: '''
+    podTemplate(label: 'kubectl-pod', cloud: 'kubernetes', yaml: '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -59,7 +59,7 @@ spec:
     command: ["sleep"]
     args: ["9999999"]
 ''') {
-        node(POD_LABEL) {
+        node('kubectl-pod') {
             stage('Deploy to EKS') {
                 container('kubectl') {
                     echo "🚀 Preparing namespace and core resources..."
