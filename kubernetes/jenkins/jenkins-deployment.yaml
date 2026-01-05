@@ -102,6 +102,8 @@ spec:
           image: docker:20.10-dind
           securityContext:
             privileged: true
+            allowPrivilegeEscalation: true
+            runAsUser: 0
           env:
             - name: DOCKER_TLS_CERTDIR
               value: ""
