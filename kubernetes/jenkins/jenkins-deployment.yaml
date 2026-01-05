@@ -55,6 +55,22 @@ data:
     instance.setCrumbIssuer(null)
     instance.save()
     println "CSRF Protection Disabled to fix 403 error"
+  setup-k8s-cloud.groovy: |
+    import jenkins.model.*
+    import org.csanchez.jenkins.plugins.kubernetes.*
+    def instance = Jenkins.getInstance()
+    def clouds = instance.clouds
+    def k8sCloud = clouds.getByName("kubernetes")
+    if (k8sCloud == null) {
+        println "Creating Kubernetes Cloud configuration..."
+        def newK8sCloud = new KubernetesCloud("kubernetes")
+        newK8sCloud.setServerUrl("https://kubernetes.default.svc.cluster.local")
+        newK8sCloud.setNamespace("jenkins")
+        newK8sCloud.setJenkinsUrl("http://jenkins.jenkins.svc.cluster.local:8080")
+        clouds.add(newK8sCloud)
+        instance.save()
+        println "Kubernetes Cloud 'kubernetes' added successfully."
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -95,9 +111,12 @@ spec:
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home
-            - name: init-scripts
+            - name: init-scripts-csrf
               mountPath: /var/jenkins_home/init.groovy.d/disable-csrf.groovy
               subPath: disable-csrf.groovy
+            - name: init-scripts-k8s
+              mountPath: /var/jenkins_home/init.groovy.d/setup-k8s-cloud.groovy
+              subPath: setup-k8s-cloud.groovy
           livenessProbe:
             httpGet:
               path: /login
@@ -117,9 +136,18 @@ spec:
       volumes:
         - name: jenkins-home
           emptyDir: {}
-        - name: init-scripts
+        - name: init-scripts-csrf
           configMap:
             name: jenkins-init-scripts
+            items:
+              - key: disable-csrf.groovy
+                path: disable-csrf.groovy
+        - name: init-scripts-k8s
+          configMap:
+            name: jenkins-init-scripts
+            items:
+              - key: setup-k8s-cloud.groovy
+                path: setup-k8s-cloud.groovy
 ---
 apiVersion: v1
 kind: Service
