@@ -99,7 +99,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
         - name: dind
-          image: docker:dind
+          image: docker:20.10-dind
           securityContext:
             privileged: true
           env:
@@ -110,10 +110,12 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           volumeMounts:
-            - name: jenkins-home
-              mountPath: /var/jenkins_home
+            - name: dind-storage
+              mountPath: /var/lib/docker
       volumes:
         - name: jenkins-home
+          emptyDir: {}
+        - name: dind-storage
           emptyDir: {}
 ---
 apiVersion: v1
