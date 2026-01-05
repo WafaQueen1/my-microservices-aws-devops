@@ -64,9 +64,6 @@ spec:
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts
-          env:
-            - name: DOCKER_HOST
-              value: tcp://localhost:2375
           ports:
             - containerPort: 8080
               name: http
@@ -98,28 +95,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-        - name: dind
-          image: docker:20.10-dind
-          securityContext:
-            privileged: true
-            allowPrivilegeEscalation: true
-            runAsUser: 0
-          env:
-            - name: DOCKER_TLS_CERTDIR
-              value: ""
-            - name: IPTABLES_MODE
-              value: "legacy"
-          resources:
-            requests:
-              cpu: "500m"
-              memory: "512Mi"
-          volumeMounts:
-            - name: dind-storage
-              mountPath: /var/lib/docker
       volumes:
         - name: jenkins-home
-          emptyDir: {}
-        - name: dind-storage
           emptyDir: {}
 ---
 apiVersion: v1
