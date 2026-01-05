@@ -29,7 +29,11 @@ spec:
         stage('Build & Push images') {
             container('kaniko') {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh "echo '{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"'$(echo -n ${DOCKER_USER}:${DOCKER_PASS} | base64)'\"}}}' > /kaniko/.docker/config.json"
+                    sh '''
+                        mkdir -p /kaniko/.docker
+                        AUTH=$(echo -n "${DOCKER_USER}:${DOCKER_PASS}" | base64 | tr -d '\n')
+                        echo "{\\"auths\\":{\\"https://index.docker.io/v1/\\":{\\"auth\\":\\"${AUTH}\\"}}}" > /kaniko/.docker/config.json
+                    '''
                     
                     sh "/kaniko/executor --context ${env.WORKSPACE}/app/frontend --dockerfile ${env.WORKSPACE}/app/frontend/Dockerfile --destination=wafa20022025/ecommerce-frontend:latest"
                     sh "/kaniko/executor --context ${env.WORKSPACE}/app/product-service --dockerfile ${env.WORKSPACE}/app/product-service/Dockerfile --destination=wafa20022025/product-service:latest"
