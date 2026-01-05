@@ -73,6 +73,9 @@ spec:
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
           ports:
             - containerPort: 8080
               name: http
@@ -88,8 +91,6 @@ spec:
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home
-            - name: docker-sock
-              mountPath: /var/run/docker.sock
           livenessProbe:
             httpGet:
               path: /login
@@ -106,12 +107,23 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+        - name: dind
+          image: docker:dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
       volumes:
         - name: jenkins-home
           emptyDir: {}
-        - name: docker-sock
-          hostPath:
-            path: /var/run/docker.sock
 ---
 apiVersion: v1
 kind: Service
