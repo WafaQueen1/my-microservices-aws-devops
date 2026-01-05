@@ -12,6 +12,7 @@ data:
         type: prometheus
         access: proxy
         url: http://prometheus:9090
+        uid: prometheus
         isDefault: true
         editable: false
 ---
@@ -94,7 +95,7 @@ data:
           "pluginVersion": "10.0.0",
           "targets": [
             {
-              "expr": "sum(up{job=~\"ecommerce-services\"})",
+              "expr": "sum(up{kubernetes_namespace=\"ecommerce\"})",
               "refId": "A"
             }
           ],
@@ -123,7 +124,7 @@ data:
           "id": 2,
           "targets": [
             {
-              "expr": "sum(rate(http_requests_total{job=~\"ecommerce-services\"}[5m]))",
+              "expr": "sum(rate({__name__=~\".*_nodejs_active_requests_total\"}[5m]))",
               "refId": "A"
             }
           ],
