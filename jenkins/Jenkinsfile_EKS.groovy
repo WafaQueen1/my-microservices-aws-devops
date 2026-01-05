@@ -18,13 +18,7 @@ spec:
       mountPath: /kaniko/.docker
   volumes:
   - name: docker-config
-    projected:
-      sources:
-      - secret:
-          name: regcred
-          items:
-            - key: .dockerconfigjson
-              path: config.json
+    emptyDir: {}
 ''') {
 
     node(POD_LABEL) {
@@ -34,9 +28,13 @@ spec:
 
         stage('Build & Push images') {
             container('kaniko') {
-                sh "/kaniko/executor --context ${env.WORKSPACE}/app/frontend --dockerfile ${env.WORKSPACE}/app/frontend/Dockerfile --destination=wafa20022025/ecommerce-frontend:latest"
-                sh "/kaniko/executor --context ${env.WORKSPACE}/app/product-service --dockerfile ${env.WORKSPACE}/app/product-service/Dockerfile --destination=wafa20022025/product-service:latest"
-                sh "/kaniko/executor --context ${env.WORKSPACE}/app/order-service --dockerfile ${env.WORKSPACE}/app/order-service/Dockerfile --destination=wafa20022025/order-service:latest"
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh "echo '{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"'$(echo -n ${DOCKER_USER}:${DOCKER_PASS} | base64)'\"}}}' > /kaniko/.docker/config.json"
+                    
+                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/frontend --dockerfile ${env.WORKSPACE}/app/frontend/Dockerfile --destination=wafa20022025/ecommerce-frontend:latest"
+                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/product-service --dockerfile ${env.WORKSPACE}/app/product-service/Dockerfile --destination=wafa20022025/product-service:latest"
+                    sh "/kaniko/executor --context ${env.WORKSPACE}/app/order-service --dockerfile ${env.WORKSPACE}/app/order-service/Dockerfile --destination=wafa20022025/order-service:latest"
+                }
             }
         }
 
