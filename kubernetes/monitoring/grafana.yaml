@@ -150,8 +150,8 @@ data:
           "id": 3,
           "targets": [
             {
-              "expr": "sum(container_memory_usage_bytes{namespace=\"ecommerce\"}) by (pod)",
-              "legendFormat": "{{pod}}",
+              "expr": "sum({__name__=~\".*_nodejs_heap_size_total_bytes\"}) by (kubernetes_pod_name)",
+              "legendFormat": "{{kubernetes_pod_name}}",
               "refId": "A"
             }
           ],
@@ -177,8 +177,8 @@ data:
           "id": 4,
           "targets": [
             {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"ecommerce\"}[5m])) by (pod)",
-              "legendFormat": "{{pod}}",
+              "expr": "sum({__name__=~\".*_nodejs_eventloop_lag_seconds\"}) by (kubernetes_pod_name)",
+              "legendFormat": "{{kubernetes_pod_name}}",
               "refId": "A"
             }
           ],
