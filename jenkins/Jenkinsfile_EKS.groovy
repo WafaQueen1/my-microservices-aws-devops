@@ -61,6 +61,7 @@ spec:
 ''') {
         node('kubectl-pod') {
             stage('Deploy to EKS') {
+                checkout scm
                 container('kubectl') {
                     echo "🚀 Preparing namespace and core resources..."
                     // Ensure namespace exists
