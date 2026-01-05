@@ -44,7 +44,7 @@ node {
         cleanWs()
     }
     
-    // Run builds sequentially
+    // Run builds sequentially to avoid Kaniko filesystem issues
     buildImage('Frontend', 'app/frontend', 'wafa20022025/ecommerce-frontend:latest')
     buildImage('Product Service', 'app/product-service', 'wafa20022025/product-service:latest')
     buildImage('Order Service', 'app/order-service', 'wafa20022025/order-service:latest')
@@ -62,9 +62,23 @@ spec:
         node(POD_LABEL) {
             stage('Deploy to EKS') {
                 container('kubectl') {
+                    echo "🚀 Preparing namespace and core resources..."
+                    // Ensure namespace exists
+                    sh "kubectl apply -f kubernetes/namespace.yaml"
+                    
+                    echo "📦 Deploying all services..."
+                    // Apply all manifests in the kubernetes directory
+                    // We apply them in a specific order: namespace (done), secrets/configmaps, then deployments
+                    sh "kubectl apply -f kubernetes/secrets.yaml -n ecommerce"
+                    sh "kubectl apply -f kubernetes/configmap.yaml -n ecommerce"
                     sh "kubectl apply -f kubernetes/product-service.yaml -n ecommerce"
                     sh "kubectl apply -f kubernetes/order-service.yaml -n ecommerce"
                     sh "kubectl apply -f kubernetes/frontend.yaml -n ecommerce"
+                    
+                    echo "🔍 Verifying rollout..."
+                    sh "kubectl rollout status deployment/product-service -n ecommerce --timeout=60s"
+                    sh "kubectl rollout status deployment/order-service -n ecommerce --timeout=60s"
+                    sh "kubectl rollout status deployment/frontend -n ecommerce --timeout=60s"
                 }
             }
         }
