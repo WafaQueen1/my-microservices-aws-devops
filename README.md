@@ -4,6 +4,14 @@ This project demonstrates a production-grade, highly available microservices app
 
 ---
 
+## 🏛️ Project Architecture
+
+![Project Architecture](architecture_diagram.png)
+
+A detailed technical breakdown of the architecture, including the AWS infrastructure, Kubernetes namespaces, and data flow, can be found in the [Architecture Documentation](file:///C:/Users/DELL/.gemini/antigravity/brain/c335fe22-333f-4c8c-9b1f-25bd922457ae/architecture.md).
+
+---
+
 ## 🏗️ Architecture Overview
 
 The system is designed with **High Availability (HA)** in mind, running a total of **6 replicas** (2 per service) to ensure zero downtime.
@@ -66,9 +74,15 @@ Access the monitoring stack in the `monitoring` namespace:
 
 - **Prometheus**: Scrapes metrics from backend services every 15 seconds.
 - **Grafana**: Visualizes the system health.
+
   - **Dashboard**: `E-Commerce Microservices Dashboard`
   - **Key Metric**: **Traffic Load (Backend CPU)** - Uses CPU usage rates as a proxy for real-time traffic activity.
   - **High Availability Check**: Displays **6 Active Instances** (2 Frontend + 2 Product + 2 Order).
+
+- **AWS CloudWatch**: Used for hardware and infrastructure-level monitoring.
+  - **Dashboard**: `ecommerce-dashboard`
+  - **URL**: [CloudWatch Dashboard Link](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=ecommerce-dashboard)
+  - **Key Metrics**: RDS CPU Utilization, Database Connections, and Storage Health.
 
 ---
 
