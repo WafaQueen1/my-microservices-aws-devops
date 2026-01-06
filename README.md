@@ -8,6 +8,69 @@ This project demonstrates a production-grade, highly available microservices app
 
 ![Project Architecture](architecture_diagram.png)
 
+### 📊 Rendered Mermaid Diagram (Editable)
+
+```mermaid
+graph LR
+    subgraph Public["Public Internet"]
+        User((User / Developer))
+    end
+
+    subgraph VPC["AWS VPC (us-east-1)"]
+        subgraph PublicSubnets["Public Subnets"]
+            LB_FE[Frontend LB]
+            LB_JK[Jenkins LB]
+            LB_GR[Grafana LB]
+        end
+
+        subgraph PrivateSubnets["Private Subnets (EKS)"]
+            subgraph NS_App["Namespace: ecommerce"]
+                FE[Frontend]
+                BE[Backend Services]
+            end
+
+            subgraph NS_Tools["DevOps & Monitoring"]
+                JK[Jenkins Master]
+                PROM[Prometheus]
+                GR[Grafana]
+            end
+        end
+
+        subgraph Data["Database Layer"]
+            RDS[(RDS PostgreSQL)]
+        end
+
+        CW[CloudWatch Monitoring]
+    end
+
+    subgraph Registry["External Registry"]
+        DH[Docker Hub]
+    end
+
+    %% Access
+    User -->|Port 80| LB_FE
+    User -->|Port 8080| LB_JK
+    User -->|Port 3000| LB_GR
+
+    %% Routing
+    LB_FE --> FE
+    LB_JK --> JK
+    LB_GR --> GR
+
+    %% App Flow
+    FE --> BE
+    BE --> RDS
+
+    %% DevOps Flow
+    JK -->|Push Image| DH
+    DH -->|Pull Image| NS_App
+
+    %% Monitoring
+    PROM -->|Scrape| NS_App
+    GR -->|Query| PROM
+    CW -->|Monitor| RDS
+```
+
 A detailed technical breakdown of the architecture, including the AWS infrastructure, Kubernetes namespaces, and data flow, can be found in the [Architecture Documentation](file:///C:/Users/DELL/.gemini/antigravity/brain/c335fe22-333f-4c8c-9b1f-25bd922457ae/architecture.md).
 
 ---
