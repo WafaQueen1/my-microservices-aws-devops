@@ -26,7 +26,8 @@ graph LR
         subgraph PrivateSubnets["Private Subnets (EKS)"]
             subgraph NS_App["Namespace: ecommerce"]
                 FE[Frontend]
-                BE[Backend Services]
+                PS[Product Service]
+                OS[Order Service]
             end
 
             subgraph NS_Tools["DevOps & Monitoring"]
@@ -58,8 +59,10 @@ graph LR
     LB_GR --> GR
 
     %% App Flow
-    FE --> BE
-    BE --> RDS
+    FE --> PS
+    FE --> OS
+    PS --> RDS
+    OS --> RDS
 
     %% DevOps Flow
     JK -->|Push Image| DH
