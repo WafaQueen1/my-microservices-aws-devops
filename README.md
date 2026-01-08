@@ -102,75 +102,117 @@ The system is designed with **High Availability (HA)** in mind, running a total 
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Implementation Guide (Step-by-Step ETPs)
 
-### 1. Provision Infrastructure
+Follow these steps to deploy the entire environment from scratch.
 
-Deploy the network, database, and cluster using Terraform:
+### Step 1: Infrastructure Provisioning (Terraform)
+
+Deploy the core networking, EKS cluster, and RDS database.
 
 ```bash
 cd terraform
+# Initialize and apply
 terraform init
 terraform apply -auto-approve
 ```
 
-### 2. Configure Jenkins CI/CD
+### Step 2: Kubernetes CLI Configuration
 
-The pipeline is defined in `jenkins/Jenkinsfile_EKS.groovy`.
+Configure your local machine to communicate with the new EKS cluster.
 
-- **Secret Setup**: Add `dockerhub-credentials` to Jenkins.
-- **RBAC Fix**: Apply the agent permissions to allow Jenkins to manage the cluster:
-  ```bash
-  kubectl apply -f kubernetes/jenkins/agent-permission.yaml
-  ```
+```bash
+aws eks update-kubeconfig --region us-east-1 --name ecommerce-cluster
+```
 
-### 3. Deploy the Application
+### Step 3: Core Namespace & RBAC Setup
 
-Trigger the Jenkins pipeline to:
+Create the necessary isolation and grant Jenkins the permissions to manage resources.
 
-1.  Build Docker images using **Kaniko**.
-2.  Push images to Docker Hub.
-3.  Deploy to the `ecommerce` namespace with a Rolling Update strategy.
+```bash
+# Create Namespaces
+kubectl apply -f kubernetes/namespace.yaml
+
+# Apply Jenkins Permissions (RBAC)
+kubectl apply -f kubernetes/jenkins/agent-permission.yaml
+```
+
+### Step 4: Database Initialization
+
+Since the RDS is in a private subnet, initialize the schema using a Kubernetes Job.
+
+```bash
+# 1. Update secrets.yaml with your RDS endpoint from Terraform output
+# 2. Apply secrets and configmaps
+kubectl apply -f kubernetes/secrets.yaml
+kubectl apply -f kubernetes/configmap.yaml
+
+# 3. Run the DB Init Job
+kubectl apply -f kubernetes/db-init-job.yaml
+```
+
+### Step 5: Jenkins CI/CD Configuration
+
+1.  **Access Jenkins**: Locate the Jenkins LoadBalancer URL via `kubectl get svc -n tools`.
+2.  **Unlock Jenkins**: Use the password found in the logs of the Jenkins pod.
+3.  **Credentials**: Add your Docker Hub credentials with ID `dockerhub-credentials`.
+4.  **Groovy Scripts**: Run `disable-csrf.groovy` and `setup-k8s-cloud.groovy` in the Script Console to fix connectivity issues.
+5.  **Pipeline**: Create a "Pipeline" job and point it to `jenkins/Jenkinsfile_EKS.groovy`.
+
+### Step 6: Deploy Microservices
+
+Trigger the Jenkins pipeline. It will:
+
+- Build images using **Kaniko** (daemonless).
+- Push to Docker Hub.
+- Roll out deployments for `frontend`, `product-service`, and `order-service`.
+
+### Step 7: Monitoring Stack Setup
+
+Deploy Prometheus and Grafana for full observability.
+
+```bash
+# Deploy Prometheus (Scraper)
+kubectl apply -f kubernetes/monitoring/prometheus.yaml
+
+# Deploy Grafana (Visualizer)
+kubectl apply -f kubernetes/monitoring/grafana.yaml
+```
 
 ---
 
 ## 📊 Monitoring & Observability
 
-Access the monitoring stack in the `monitoring` namespace:
+Access the monitoring tools using their respective services:
 
-- **Prometheus**: Scrapes metrics from backend services every 15 seconds.
-- **Grafana**: Visualizes the system health.
-
-  - **Dashboard**: `E-Commerce Microservices Dashboard`
-  - **Key Metric**: **Traffic Load (Backend CPU)** - Uses CPU usage rates as a proxy for real-time traffic activity.
-  - **High Availability Check**: Displays **6 Active Instances** (2 Frontend + 2 Product + 2 Order).
-
-- **AWS CloudWatch**: Used for hardware and infrastructure-level monitoring.
-  - **Dashboard**: `ecommerce-dashboard`
-  - **URL**: [CloudWatch Dashboard Link](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=ecommerce-dashboard)
-  - **Key Metrics**: RDS CPU Utilization, Database Connections, and Storage Health.
+- **Prometheus**: Internal scraping with custom annotations.
+- **Grafana**: `E-Commerce Microservices Dashboard`
+  - Visualizes **6 Active Instances** (2 per service).
+  - Tracks **Backend CPU Load** as a proxy for traffic load.
+- **CloudWatch**: Integrated AWS dashboard for RDS and VPC health.
 
 ---
 
-## 🛠️ Key Technical Solutions
+## 🛠️ Key Technical Solutions implemented
 
-| Problem                            | Solution                                                                              |
-| :--------------------------------- | :------------------------------------------------------------------------------------ |
-| **No Docker Daemon in EKS**        | Implemented **Kaniko** for building images without a host socket.                     |
-| **Jenkins Permission Denied**      | Created a custom **ClusterRoleBinding** for the Jenkins Agent.                        |
-| **Infrastructure Metric Blocking** | Switched dashboard to use **Application-level CPU metrics** for traffic visibility.   |
-| **Service Visibility**             | Added specialized **Prometheus Annotations** to all deployments (including Frontend). |
+| Problem                 | Solution                                                     |
+| :---------------------- | :----------------------------------------------------------- |
+| **No Docker Socket**    | Implemented **Kaniko** for secure image builds.              |
+| **Jenkins Permissions** | Defined a **ClusterRole** specifically for the agent.        |
+| **RDS Connectivity**    | Used a **Kubernetes Job** for secure, internal DB seeding.   |
+| **Metrics Visibility**  | Added **Prometheus Scrape Annotations** to all service pods. |
 
 ---
 
-## 🧹 Cleanup
+## 🧹 Cleanup & Cost Management
 
-To avoid AWS costs, destroy all resources when finished:
+To avoid charges (especially NAT Gateways and RDS), destroy everything when done:
 
 ```bash
+cd terraform
 terraform destroy -auto-approve
 ```
 
 ---
 
-_Developed as part of a DevOps & Microservices Specialization._
+_Project developed as part of the M2-DevOps program._
