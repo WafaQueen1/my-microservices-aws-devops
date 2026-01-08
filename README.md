@@ -1,6 +1,6 @@
 # 🛒 E-Commerce Microservices Architecture on AWS EKS
 
-This project demonstrates a production-grade, highly available microservices application deployed on **AWS Elastic Kubernetes Service (EKS)**. It features a complete CI/CD pipeline, automated infrastructure provisioning, and a robust monitoring stack.
+This project demonstrates a production-grade, highly available microservices application deployed on **AWS Elastic Kubernetes Service (EKS)**. It features a complete CI/CD pipeline, automated infrastructure provisioning, and a robust monitoring stack (Prometheus & Grafana) along with AWS CloudWatch integration.
 
 ---
 
@@ -8,205 +8,137 @@ This project demonstrates a production-grade, highly available microservices app
 
 ![Project Architecture](architecture_diagram.png)
 
-### 📊 Rendered Mermaid Diagram (Editable)
+### 📊 System Workflow
 
-```mermaid
-graph LR
-    subgraph Public["Public Internet"]
-        User((User / Developer))
-    end
+The architecture follows a standard 3-tier model adapted for Kubernetes:
 
-    subgraph VPC["AWS VPC (us-east-1)"]
-        subgraph PublicSubnets["Public Subnets"]
-            LB_FE[Frontend LB]
-            LB_JK[Jenkins LB]
-            LB_GR[Grafana LB]
-        end
-
-        subgraph PrivateSubnets["Private Subnets (EKS)"]
-            subgraph NS_App["Namespace: ecommerce"]
-                FE[Frontend]
-                PS[Product Service]
-                OS[Order Service]
-            end
-
-            subgraph NS_Tools["DevOps & Monitoring"]
-                JK[Jenkins Master]
-                PROM[Prometheus]
-                GR[Grafana]
-            end
-        end
-
-        subgraph Data["Database Layer"]
-            RDS[(RDS PostgreSQL)]
-        end
-
-        CW[CloudWatch Monitoring]
-    end
-
-    subgraph Registry["External Registry"]
-        DH[Docker Hub]
-    end
-
-    %% Access
-    User -->|Port 80| LB_FE
-    User -->|Port 8080| LB_JK
-    User -->|Port 3000| LB_GR
-
-    %% Routing
-    LB_FE --> FE
-    LB_JK --> JK
-    LB_GR --> GR
-
-    %% App Flow
-    FE --> PS
-    FE --> OS
-    PS --> RDS
-    OS --> RDS
-
-    %% DevOps Flow
-    JK -->|Push Image| DH
-    DH -->|Pull Image| NS_App
-
-    %% Monitoring
-    PROM -->|Scrape| NS_App
-    GR -->|Query| PROM
-    CW -->|Monitor| RDS
-```
-
-A detailed technical breakdown of the architecture, including the AWS infrastructure, Kubernetes namespaces, and data flow, can be found in the [Architecture Documentation](file:///C:/Users/DELL/.gemini/antigravity/brain/c335fe22-333f-4c8c-9b1f-25bd922457ae/architecture.md).
+1.  **Ingress Layer**: AWS Classic Load Balancers routing traffic to the EKS nodes.
+2.  **Logic Layer**: Microservices running in the `ecommerce` namespace with 2 replicas each for High Availability.
+3.  **Data Layer**: AWS RDS MySQL instance located in isolated private subnets.
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Technical Component Breakdown
 
-The system is designed with **High Availability (HA)** in mind, running a total of **6 replicas** (2 per service) to ensure zero downtime.
+### 1. AWS Infrastructure (Terraform)
 
-### 🌐 System Components
+The environment is provisioned using highly modular Terraform code:
 
-1.  **Frontend**: React.js application served by Nginx.
-2.  **Product-Service**: Node.js/Express API for managing product catalogs.
-3.  **Order-Service**: Node.js/Express API for handling customer orders and transactions.
-4.  **Database**: Managed **AWS RDS (MySQL)** for persistent storage.
+- **Networking**: Custom VPC (`10.0.0.0/16`) with:
+  - **2x Public Subnets**: Hosting NAT Gateways and Load Balancers.
+  - **2x Private Subnets**: Hosting EKS Worker Nodes.
+  - **2x Isolated Private Subnets**: Dedicated for the RDS MySQL instance.
+- **Compute**: EKS Cluster (Managed Node Group) using `t3.medium` instances to support the heavy Jenkins and Monitoring workloads.
+- **Database**: RDS MySQL 8.0 with storage autoscaling (20GB → 100GB).
 
-### 🏛️ Infrastructure & DevOps Stack
+### 2. DevOps & CI/CD (Jenkins)
 
-- **Infrastructure as Code**: Terraform (VPC, EKS, RDS, Security Groups).
-- **Container Orchestration**: AWS EKS (Managed Kubernetes).
-- **CI/CD Pipeline**: Jenkins running inside the cluster.
-  - **Kaniko**: Used for secure, daemonless Docker image builds inside Kubernetes.
-  - **RBAC**: Custom ClusterRoles for secure Jenkins-to-EKS communication.
-- **Monitoring**:
-  - **Prometheus**: Real-time metric scraping.
-  - **Grafana**: Custom dashboards for service health and traffic load.
+Jenkins is deployed as a stateful set within the `tools` namespace:
+
+- **Automation**: Uses `init.groovy.d` scripts to automatically:
+  - Disable CSRF protection (required for CI/CD triggers).
+  - Configure the Kubernetes Cloud plugin for dynamic agent scaling.
+- **Build Isolation**: Implements a **Kaniko Multi-Pod** strategy. Each build runs in a dedicated ephemeral pod to avoid the known "Kaniko workspace corruption" issue during parallel Node.js builds.
+- **Security**: Granular RBAC permissions allow Jenkins to safely manage deployments without requiring `cluster-admin` privileges.
+
+> [!WARNING]
+>
+> ### ⚠️ Critical Project Notes
+>
+> 1. **Jenkins Persistence**: In this current deployment (`jenkins-deployment.yaml`), the Jenkins home is mounted as an `emptyDir`. This means **all data (pipelines, users) will be lost** if the pod is restarted. In a production environment, you must switch this to an AWS EFS or EBS volume.
+> 2. **AWS Academy Environment**: If deploying through an AWS Academy learner lab, you **must** use the `LabRole` for all IAM roles in Terraform. The code in `terraform/eks.tf` has been optimized to handle these permission constraints.
+> 3. **NAT Gateway Costs**: This project provisions 2 NAT Gateways. They are essential for the private subnets but are the primary driver of the $40+ cost. Ensure you run the cleanup step immediately after finishing your lab.
+
+### 3. Monitoring & Observability
+
+- **Prometheus**: Configured with Kubernetes Service Discovery to automatically find and scrape any pods with `prometheus.io/scrape: "true"` annotations.
+- **Grafana**: Pre-configured with an "E-Commerce" dashboard including:
+  - **Traffic Load**: Calculated via `sum(rate(node_cpu_seconds_total))` as a proxy for app demand.
+  - **Memory/CPU**: Individual pod tracking for bottleneck identification.
+  - **Default Credentials**: `admin` / `admin123`.
+- **CloudWatch**: Visualizes RDS IOPS, Latency, and Free Storage Space to ensure database health.
 
 ---
 
-## 🚀 Implementation Guide (Step-by-Step ETPs)
+## 🚀 Implementation Guide (The "ETP" Steps)
 
-Follow these steps to deploy the entire environment from scratch.
-
-### Step 1: Infrastructure Provisioning (Terraform)
-
-Deploy the core networking, EKS cluster, and RDS database.
+### Phase 1: Infrastructure Setup
 
 ```bash
 cd terraform
-# Initialize and apply
 terraform init
 terraform apply -auto-approve
 ```
 
-### Step 2: Kubernetes CLI Configuration
+_Wait for outputs. Note the `rds_endpoint` for the next phase._
 
-Configure your local machine to communicate with the new EKS cluster.
+### Phase 2: Cluster Configuration
 
 ```bash
+# Connect to cluster
 aws eks update-kubeconfig --region us-east-1 --name ecommerce-cluster
-```
 
-### Step 3: Core Namespace & RBAC Setup
-
-Create the necessary isolation and grant Jenkins the permissions to manage resources.
-
-```bash
-# Create Namespaces
+# Initialize Cluster-wide resources
 kubectl apply -f kubernetes/namespace.yaml
-
-# Apply Jenkins Permissions (RBAC)
 kubectl apply -f kubernetes/jenkins/agent-permission.yaml
 ```
 
-### Step 4: Database Initialization
+### Phase 3: Database & Secret Management
 
-Since the RDS is in a private subnet, initialize the schema using a Kubernetes Job.
+Modify `kubernetes/secrets.yaml` with the RDS details from Terraform, then apply:
 
 ```bash
-# 1. Update secrets.yaml with your RDS endpoint from Terraform output
-# 2. Apply secrets and configmaps
 kubectl apply -f kubernetes/secrets.yaml
 kubectl apply -f kubernetes/configmap.yaml
-
-# 3. Run the DB Init Job
+# Run the DB schema initialization
 kubectl apply -f kubernetes/db-init-job.yaml
 ```
 
-### Step 5: Jenkins CI/CD Configuration
+### Phase 4: CI/CD Execution
 
-1.  **Access Jenkins**: Locate the Jenkins LoadBalancer URL via `kubectl get svc -n tools`.
-2.  **Unlock Jenkins**: Use the password found in the logs of the Jenkins pod.
-3.  **Credentials**: Add your Docker Hub credentials with ID `dockerhub-credentials`.
-4.  **Groovy Scripts**: Run `disable-csrf.groovy` and `setup-k8s-cloud.groovy` in the Script Console to fix connectivity issues.
-5.  **Pipeline**: Create a "Pipeline" job and point it to `jenkins/Jenkinsfile_EKS.groovy`.
+1. Access Jenkins via the LoadBalancer service in the `jenkins` namespace.
+2. Add Docker Hub credentials (ID: `dockerhub-credentials`).
+3. Create a Pipeline Job using `jenkins/Jenkinsfile_EKS.groovy`.
+4. Run the build. It will build 3 images (Frontend, Product, Order) and deploy them to the `ecommerce` namespace.
 
-### Step 6: Deploy Microservices
-
-Trigger the Jenkins pipeline. It will:
-
-- Build images using **Kaniko** (daemonless).
-- Push to Docker Hub.
-- Roll out deployments for `frontend`, `product-service`, and `order-service`.
-
-### Step 7: Monitoring Stack Setup
-
-Deploy Prometheus and Grafana for full observability.
+### Phase 5: Monitoring Deployment
 
 ```bash
-# Deploy Prometheus (Scraper)
 kubectl apply -f kubernetes/monitoring/prometheus.yaml
-
-# Deploy Grafana (Visualizer)
 kubectl apply -f kubernetes/monitoring/grafana.yaml
 ```
 
 ---
 
-## 📊 Monitoring & Observability
+## �️ Advanced Troubleshooting (Resolved Issues)
 
-Access the monitoring tools using their respective services:
-
-- **Prometheus**: Internal scraping with custom annotations.
-- **Grafana**: `E-Commerce Microservices Dashboard`
-  - Visualizes **6 Active Instances** (2 per service).
-  - Tracks **Backend CPU Load** as a proxy for traffic load.
-- **CloudWatch**: Integrated AWS dashboard for RDS and VPC health.
-
----
-
-## 🛠️ Key Technical Solutions implemented
-
-| Problem                 | Solution                                                     |
-| :---------------------- | :----------------------------------------------------------- |
-| **No Docker Socket**    | Implemented **Kaniko** for secure image builds.              |
-| **Jenkins Permissions** | Defined a **ClusterRole** specifically for the agent.        |
-| **RDS Connectivity**    | Used a **Kubernetes Job** for secure, internal DB seeding.   |
-| **Metrics Visibility**  | Added **Prometheus Scrape Annotations** to all service pods. |
+| Problem Area               | Solution Description                                                                               |
+| :------------------------- | :------------------------------------------------------------------------------------------------- |
+| **Jenkins CSRF 403**       | Resolved via `disable-csrf.groovy` which runs on Jenkins startup.                                  |
+| **Kaniko "file exists"**   | Resolved by using unique `podTemplate` labels for every build stage in the Groovy pipeline.        |
+| **RDS Connection**         | Resolved by adding a Security Group egress rule from EKS Nodes to RDS Private Subnets (Port 3306). |
+| **Grafana Persistence**    | Configured via `grafana-dashboard-ecommerce` ConfigMap to ensure dashboards survive pod restarts.  |
+| **Docker Hub Rate Limits** | Implemented authenticated pulls within the Kaniko executor config.                                 |
 
 ---
 
-## 🧹 Cleanup & Cost Management
+## � Repository Structure
 
-To avoid charges (especially NAT Gateways and RDS), destroy everything when done:
+```text
+├── app/                  # Microservices Source Code (React, Node.js)
+├── terraform/            # Infrastructure as Code (VPC, EKS, RDS)
+├── kubernetes/           # YAML Manifests
+│   ├── jenkins/          # Master Jenkins deployment & RBAC
+│   ├── monitoring/       # Prometheus & Grafana setup
+│   └── *.yaml            # Microservices & Config specs
+└── jenkins/              # Groovy Pipeline Definitions
+```
+
+---
+
+## 🧹 Cleanup
+
+To avoid $40+ per day in AWS costs, always run:
 
 ```bash
 cd terraform
@@ -215,4 +147,6 @@ terraform destroy -auto-approve
 
 ---
 
-_Project developed as part of the M2-DevOps program._
+**Program**: DevOps & Microservices Specialization (M2)  
+**Author**: Project Team  
+**Environment**: AWS US-East-1 (North Virginia)
