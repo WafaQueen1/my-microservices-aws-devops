@@ -110,19 +110,115 @@ kubectl apply -f kubernetes/monitoring/grafana.yaml
 
 ---
 
-## �️ Advanced Troubleshooting (Resolved Issues)
+## 🛠️ Technical Challenges & Deep-Dive Solutions
 
-| Problem Area               | Solution Description                                                                               |
-| :------------------------- | :------------------------------------------------------------------------------------------------- |
-| **Jenkins CSRF 403**       | Resolved via `disable-csrf.groovy` which runs on Jenkins startup.                                  |
-| **Kaniko "file exists"**   | Resolved by using unique `podTemplate` labels for every build stage in the Groovy pipeline.        |
-| **RDS Connection**         | Resolved by adding a Security Group egress rule from EKS Nodes to RDS Private Subnets (Port 3306). |
-| **Grafana Persistence**    | Configured via `grafana-dashboard-ecommerce` ConfigMap to ensure dashboards survive pod restarts.  |
-| **Docker Hub Rate Limits** | Implemented authenticated pulls within the Kaniko executor config.                                 |
+This project survived several critical technical hurdles. Below is the documentation of how we solved them.
+
+### 1. Jenkins "403 Forbidden" (CSRF Protection)
+
+**Problem**: Modern Jenkins versions enforce Strict CSRF protection, which blocks the Jenkins Agent from communicating back to the Master when running inside EKS LoadBalancers.
+**Solution**: We implemented an automated Groovy hook in `init.groovy.d`.
+
+```groovy
+// disable-csrf.groovy
+import jenkins.model.*
+import hudson.security.*
+def instance = Jenkins.getInstance()
+instance.setCrumbIssuer(null) // Disables the crumb requirement
+instance.save()
+```
+
+_Implementation: This script is automatically injected via a Kubernetes ConfigMap and mounted into the Jenkins home directory._
+
+### 2. Kaniko "File Exists" & Workspace Corruption
+
+**Problem**: Parallel builds (Frontend, Product, Order) in a single Jenkins agent caused Kaniko to attempt to reuse the same `/workspace`, leading to "directory already exists" or "checksum mismatch" errors.
+**Solution**: We shifted to a **Dynamic Multi-Pod Strategy** in the `Jenkinsfile_EKS.groovy`.
+
+```groovy
+def buildImage(String serviceName, String contextPath, String destination) {
+    // Generate a unique label for every single build
+    def podLabel = "kaniko-${serviceName.toLowerCase().replace(' ', '-')}"
+    podTemplate(label: podLabel, cloud: 'kubernetes', yaml: podYaml) {
+        node(podLabel) {
+            // Build logic isolated to this ephemeral pod
+        }
+    }
+}
+```
+
+_Result: Each microservice now builds in its own isolated filesystem, ensuring 100% clean workspaces._
+
+### 3. EKS RBAC Permission Denied
+
+**Problem**: The default Jenkins agent service account lacked permissions to create "Deployments" or "Services" in the `ecommerce` namespace.
+**Solution**: We created a dedicated `ClusterRole` and `ClusterRoleBinding` specifically for the Jenkins service account.
+
+```yaml
+# agent-permission.yaml
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-agent-binding
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: jenkins
+roleRef:
+  kind: ClusterRole
+  name: jenkins-cluster-role # Grants apps/* and core/* permissions
+```
+
+### 4. RDS "Connection Timed Out" (The Security Group Trap)
+
+**Problem**: Application pods could not reach the database even though both were in the same VPC.
+**Solution**: We cross-referenced Security Groups in Terraform. We explicitly allowed the **EKS Node Security Group** to access the **RDS Security Group** on port 3306.
+
+```hcl
+# security-groups.tf
+resource "aws_security_group_rule" "eks_to_rds" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.rds.id
+  source_security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+}
+```
+
+### 5. AWS Academy "LabRole" Limitations
+
+**Problem**: Standard IAM role creation fails in AWS Academy due to `iam:CreateRole` restrictions.
+**Solution**: We hardcoded the Amazon-provided `LabRole` into the EKS and RDS configurations, avoiding the need for Terraform to create new IAM roles.
+
+### 6. Grafana Dashboard Persistence
+
+**Problem**: By default, Grafana stores dashboards in an internal SQLite database which is lost upon pod restart.
+**Solution**: We implemented "Dashboard-as-Code" using Kubernetes ConfigMaps.
+
+```yaml
+# grafana.yaml
+volumeMounts:
+  - name: grafana-dashboard-ecommerce
+    mountPath: /var/lib/grafana/dashboards # Dashboards are side-loaded here
+```
+
+_Effect: Even if the Grafana pod dies, the E-Commerce dashboard is automatically reloaded from the ConfigMap on the next boot._
+
+### 7. Private RDS Seeding (The Connectivity Barrier)
+
+**Problem**: The database is in an isolated private subnet. Developers cannot connect to it from their local machine to run initial `CREATE TABLE` scripts.
+**Solution**: We used a **Kubernetes Job** (`db-init-job.yaml`) to run the initialization _inside_ the VPC.
+
+```bash
+# Executing the seeding inside the cluster
+kubectl apply -f kubernetes/db-init-job.yaml
+```
+
+_Logic: Since the K8s nodes have network access to the RDS, the job can securely execute the SQL script without exposing the DB to the internet._
 
 ---
 
-## � Repository Structure
+## 📁 Repository Structure
 
 ```text
 ├── app/                  # Microservices Source Code (React, Node.js)
