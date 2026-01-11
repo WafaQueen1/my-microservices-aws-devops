@@ -6,7 +6,7 @@ This project demonstrates a production-grade, highly available microservices app
 
 ## 🏛️ Project Architecture
 
-![Project Architecture](architecture_diagram.png)
+![Project Architecture](FINAL_architecture_diagram.png)
 
 ### 📊 System Workflow
 

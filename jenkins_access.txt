@@ -1,0 +1,17 @@
+Jenkins Access Information
+==========================
+
+Jenkins URL: http://a7bb291338b7d423ca30cc05be742048-1469136122.us-east-1.elb.amazonaws.com:8080
+
+Initial Admin Password: ca552f776d77426b9f3da4fac279660a
+
+Next Steps:
+1. Access Jenkins using the URL above
+2. Login with the initial admin password
+3. Complete the setup wizard (install suggested plugins)
+4. Add Docker Hub credentials:
+   - ID: dockerhub-credentials
+   - Username: wafa20022025
+   - Password: [Your Docker Hub password/token]
+5. Create a Pipeline job using jenkins/Jenkinsfile_EKS.groovy
+6. Run the pipeline to build and deploy all 3 microservices
